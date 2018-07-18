@@ -10,8 +10,10 @@ import android.os.Build;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
 import android.util.Log;
+import android.widget.ImageButton;
 
 import com.smartdevicelink.exception.SdlException;
+import com.smartdevicelink.proxy.RPCRequest;
 import com.smartdevicelink.proxy.RPCStruct;
 import com.smartdevicelink.proxy.SdlProxyALM;
 import com.smartdevicelink.proxy.callbacks.OnServiceEnded;
@@ -68,11 +70,14 @@ import com.smartdevicelink.proxy.rpc.SetAppIconResponse;
 import com.smartdevicelink.proxy.rpc.SetDisplayLayoutResponse;
 import com.smartdevicelink.proxy.rpc.SetGlobalPropertiesResponse;
 import com.smartdevicelink.proxy.rpc.SetInteriorVehicleDataResponse;
+import com.smartdevicelink.proxy.rpc.SetMediaClockTimer;
 import com.smartdevicelink.proxy.rpc.SetMediaClockTimerResponse;
+import com.smartdevicelink.proxy.rpc.Show;
 import com.smartdevicelink.proxy.rpc.ShowConstantTbtResponse;
 import com.smartdevicelink.proxy.rpc.ShowResponse;
 import com.smartdevicelink.proxy.rpc.SliderResponse;
 import com.smartdevicelink.proxy.rpc.SpeakResponse;
+import com.smartdevicelink.proxy.rpc.StartTime;
 import com.smartdevicelink.proxy.rpc.StreamRPCResponse;
 import com.smartdevicelink.proxy.rpc.SubscribeButton;
 import com.smartdevicelink.proxy.rpc.SubscribeButtonResponse;
@@ -86,9 +91,17 @@ import com.smartdevicelink.proxy.rpc.UpdateTurnListResponse;
 import com.smartdevicelink.proxy.rpc.enums.ButtonName;
 import com.smartdevicelink.proxy.rpc.enums.HMILevel;
 import com.smartdevicelink.proxy.rpc.enums.SdlDisconnectedReason;
+import com.smartdevicelink.proxy.rpc.enums.UpdateMode;
 import com.smartdevicelink.transport.TransportConstants;
 
 import org.json.JSONException;
+
+import java.util.concurrent.TimeUnit;
+
+import de.danoeh.antennapod.core.preferences.UserPreferences;
+import de.danoeh.antennapod.core.service.playback.PlayerStatus;
+import de.danoeh.antennapod.core.util.playback.Playable;
+import de.danoeh.antennapod.core.util.playback.PlaybackController;
 
 public class SdlService extends Service implements IProxyListenerALM {
     private final static int NOTIFICATION_ID = 1; // Chosen randomly by rolling a 6 sided die
@@ -100,12 +113,148 @@ public class SdlService extends Service implements IProxyListenerALM {
 
     private boolean isFirstRun = true;
 
+    private PlaybackController playbackController = null;
+
     private String serializeOrFart(RPCStruct struct) {
         try {
             return struct.serializeJSON().toString(2);
         } catch (JSONException e) {
             return "Could not serialize struct.";
         }
+    }
+
+    private void sendRPCDammit(RPCRequest rpcRequest) {
+        try {
+            proxy.sendRPCRequest(rpcRequest);
+        } catch (SdlException e) {
+            Log.e(TAG, "sendRPCDammit: Couldn't send request " + serializeOrFart(rpcRequest), e);
+        }
+    }
+
+    private StartTime toStartTime(int msec) {
+        StartTime startTime = new StartTime();
+        startTime.setHours((int)TimeUnit.MILLISECONDS.toHours(msec));
+        startTime.setMinutes((int)TimeUnit.MILLISECONDS.toMinutes(msec));
+        startTime.setSeconds((int)TimeUnit.MILLISECONDS.toSeconds(msec));
+        return startTime;
+    }
+
+    private PlaybackController newPlaybackController() {
+        return new PlaybackController(this, false) {
+
+            @Override
+            public void setupGUI() {
+
+            }
+
+            @Override
+            public void onPositionObserverUpdate() {
+                int cur = playbackController.getPosition();
+                int dur = playbackController.getDuration();
+                SetMediaClockTimer mediaClockTimer = new SetMediaClockTimer();
+                mediaClockTimer.setStartTime(toStartTime(cur));
+                mediaClockTimer.setEndTime(toStartTime(dur));
+                mediaClockTimer.setUpdateMode(playbackController.getStatus() == PlayerStatus.PLAYING ? UpdateMode.COUNTUP : UpdateMode.PAUSE);
+                sendRPCDammit(mediaClockTimer);
+            }
+
+            @Override
+            public void onBufferStart() {
+
+            }
+
+            @Override
+            public void onBufferEnd() {
+
+            }
+
+            @Override
+            public void onBufferUpdate(float progress) {
+
+            }
+
+            @Override
+            public void handleError(int code) {
+
+            }
+
+            @Override
+            public void onReloadNotification(int code) {
+
+            }
+
+            @Override
+            public void onSleepTimerUpdate() {
+
+            }
+
+            @Override
+            public ImageButton getPlayButton() {
+                return null;
+            }
+
+            @Override
+            public void postStatusMsg(int msg, boolean showToast) {
+
+            }
+
+            @Override
+            public void clearStatusMsg() {
+
+            }
+
+            @Override
+            public boolean loadMediaInfo() {
+                Playable playable = playbackController.getMedia();
+                if (playable == null) return false;
+
+                Show show = new Show();
+                show.setMainField1(playable.getEpisodeTitle());
+                show.setMainField2(playable.getFeedTitle());
+                sendRPCDammit(show);
+                onPositionObserverUpdate();
+                return true;
+            }
+
+            @Override
+            public void onAwaitingVideoSurface() {
+
+            }
+
+            @Override
+            public void onServiceQueried() {
+
+            }
+
+            @Override
+            public void onShutdownNotification() {
+
+            }
+
+            @Override
+            public void onPlaybackEnd() {
+                Show show = new Show();
+                show.setMainField1("");
+                show.setMainField2("");
+                sendRPCDammit(show);
+            }
+
+            @Override
+            public void onPlaybackSpeedChange() {
+
+            }
+
+            @Override
+            protected void setScreenOn(boolean enable) {
+                super.setScreenOn(enable);
+
+            }
+
+            @Override
+            public void onSetSpeedAbilityChanged() {
+
+            }
+        };
     }
 
     @Override
@@ -130,6 +279,8 @@ public class SdlService extends Service implements IProxyListenerALM {
             stopForeground(true);
         }
 
+        playbackController = null;
+
         super.onDestroy();
     }
 
@@ -151,6 +302,8 @@ public class SdlService extends Service implements IProxyListenerALM {
                     .build();
             startForeground(NOTIFICATION_ID, serviceNotification);
         }
+
+        playbackController = newPlaybackController();
     }
 
     @Nullable
@@ -298,6 +451,21 @@ public class SdlService extends Service implements IProxyListenerALM {
     @Override
     public void onOnButtonPress(OnButtonPress notification) {
         Log.d(TAG, "onOnButtonPress() called with: notification = [" + serializeOrFart(notification) + "]");
+
+        switch (notification.getButtonName()) {
+            case OK:
+                Log.i(TAG, "onOnButtonPress: OK (play/pause) pressed");
+                playbackController.playPause();
+                break;
+            case SEEKLEFT:
+                Log.i(TAG, "onOnButtonPress: SEEKLEFT pressed");
+                playbackController.seekTo(playbackController.getPosition() - (UserPreferences.getRewindSecs() * 1000));
+                break;
+            case SEEKRIGHT:
+                Log.i(TAG, "onOnButtonPress: SEEKRIGHT pressed");
+                playbackController.seekTo(playbackController.getPosition() + (UserPreferences.getFastForwardSecs() * 1000));
+                break;
+        }
     }
 
     @Override

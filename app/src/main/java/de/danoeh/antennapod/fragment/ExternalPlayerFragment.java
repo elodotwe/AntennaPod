@@ -94,7 +94,7 @@ public class ExternalPlayerFragment extends Fragment {
 
             @Override
             public void onPositionObserverUpdate() {
-                ExternalPlayerFragment.this.onPositionObserverUpdate();
+                getActivity().runOnUiThread(ExternalPlayerFragment.this::onPositionObserverUpdate);
             }
 
             @Override

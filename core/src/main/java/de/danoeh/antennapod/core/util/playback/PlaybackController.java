@@ -1,18 +1,15 @@
 package de.danoeh.antennapod.core.util.playback;
 
-import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
-import android.content.SharedPreferences;
 import android.content.res.TypedArray;
 import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.IBinder;
-import android.preference.PreferenceManager;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
 import android.support.v4.content.ContextCompat;
@@ -24,10 +21,8 @@ import android.widget.ImageButton;
 import android.widget.SeekBar;
 import android.widget.TextView;
 
-import java.util.concurrent.RejectedExecutionHandler;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import de.danoeh.antennapod.core.R;
@@ -57,7 +52,7 @@ public abstract class PlaybackController {
 
     private static final int INVALID_TIME = -1;
 
-    private final Activity activity;
+    private final Context context;
 
     private PlaybackService playbackService;
     private Playable media;
@@ -81,9 +76,9 @@ public abstract class PlaybackController {
      */
     private final boolean reinitOnPause;
 
-    public PlaybackController(@NonNull Activity activity, boolean reinitOnPause) {
+    public PlaybackController(@NonNull Context context, boolean reinitOnPause) {
 
-        this.activity = activity;
+        this.context = context;
         this.reinitOnPause = reinitOnPause;
         schedExecutor = new ScheduledThreadPoolExecutor(SCHED_EX_POOLSIZE,
                 r -> {
@@ -111,13 +106,13 @@ public abstract class PlaybackController {
         }
         initialized = true;
 
-        activity.registerReceiver(statusUpdate, new IntentFilter(
+        context.registerReceiver(statusUpdate, new IntentFilter(
             PlaybackService.ACTION_PLAYER_STATUS_CHANGED));
 
-        activity.registerReceiver(notificationReceiver, new IntentFilter(
+        context.registerReceiver(notificationReceiver, new IntentFilter(
             PlaybackService.ACTION_PLAYER_NOTIFICATION));
 
-        activity.registerReceiver(shutdownReceiver, new IntentFilter(
+        context.registerReceiver(shutdownReceiver, new IntentFilter(
                 PlaybackService.ACTION_SHUTDOWN_PLAYBACK_SERVICE));
 
         if (!released) {
@@ -136,13 +131,13 @@ public abstract class PlaybackController {
         Log.d(TAG, "Releasing PlaybackController");
 
         try {
-            activity.unregisterReceiver(statusUpdate);
+            context.unregisterReceiver(statusUpdate);
         } catch (IllegalArgumentException e) {
             // ignore
         }
 
         try {
-            activity.unregisterReceiver(notificationReceiver);
+            context.unregisterReceiver(notificationReceiver);
         } catch (IllegalArgumentException e) {
             // ignore
         }
@@ -151,13 +146,13 @@ public abstract class PlaybackController {
             serviceBinder.unsubscribe();
         }
         try {
-            activity.unbindService(mConnection);
+            context.unbindService(mConnection);
         } catch (IllegalArgumentException e) {
             // ignore
         }
 
         try {
-            activity.unregisterReceiver(shutdownReceiver);
+            context.unregisterReceiver(shutdownReceiver);
         } catch (IllegalArgumentException e) {
             // ignore
         }
@@ -193,8 +188,8 @@ public abstract class PlaybackController {
                     if (!PlaybackService.started) {
                         if (intent != null) {
                             Log.d(TAG, "Calling start service");
-                            ContextCompat.startForegroundService(activity, intent);
-                            bound = activity.bindService(intent, mConnection, 0);
+                            ContextCompat.startForegroundService(context, intent);
+                            bound = context.bindService(intent, mConnection, 0);
                         } else {
                             status = PlayerStatus.STOPPED;
                             setupGUI();
@@ -202,7 +197,7 @@ public abstract class PlaybackController {
                         }
                     } else {
                         Log.d(TAG, "PlaybackService is running, trying to connect without start command.");
-                        bound = activity.bindService(new Intent(activity, PlaybackService.class),
+                        bound = context.bindService(new Intent(context, PlaybackService.class),
                                 mConnection, 0);
                     }
                     Log.d(TAG, "Result for service binding: " + bound);
@@ -215,7 +210,7 @@ public abstract class PlaybackController {
      */
     @Nullable private Intent getPlayLastPlayedMediaIntent() {
         Log.d(TAG, "Trying to restore last played media");
-        Playable media = PlayableUtils.createInstanceFromPreferences(activity);
+        Playable media = PlayableUtils.createInstanceFromPreferences(context);
         if (media == null) {
             Log.d(TAG, "No last played media found");
             return null;
@@ -224,10 +219,10 @@ public abstract class PlaybackController {
         boolean fileExists = media.localFileAvailable();
         boolean lastIsStream = PlaybackPreferences.getCurrentEpisodeIsStream();
         if (!fileExists && !lastIsStream && media instanceof FeedMedia) {
-            DBTasks.notifyMissingFeedMediaFile(activity, (FeedMedia) media);
+            DBTasks.notifyMissingFeedMediaFile(context, (FeedMedia) media);
         }
 
-        return new PlaybackServiceStarter(activity, media)
+        return new PlaybackServiceStarter(context, media)
                 .startWhenPrepared(false)
                 .shouldStream(lastIsStream || !fileExists)
                 .getIntent();
@@ -402,12 +397,12 @@ public abstract class PlaybackController {
     private void handleStatus() {
         final int playResource;
         final int pauseResource;
-        final CharSequence playText = activity.getString(R.string.play_label);
-        final CharSequence pauseText = activity.getString(R.string.pause_label);
+        final CharSequence playText = context.getString(R.string.play_label);
+        final CharSequence pauseText = context.getString(R.string.pause_label);
 
         if (PlaybackService.getCurrentMediaType() == MediaType.AUDIO ||
                 PlaybackService.isCasting()) {
-            TypedArray res = activity.obtainStyledAttributes(new int[]{
+            TypedArray res = context.obtainStyledAttributes(new int[]{
                     R.attr.av_play_big, R.attr.av_pause_big});
             playResource = res.getResourceId(0, R.drawable.ic_play_arrow_grey600_36dp);
             pauseResource = res.getResourceId(1, R.drawable.ic_pause_grey600_36dp);
@@ -584,7 +579,7 @@ public abstract class PlaybackController {
 
     public void playPause() {
         if (playbackService == null) {
-            new PlaybackServiceStarter(activity, media)
+            new PlaybackServiceStarter(context, media)
                     .startWhenPrepared(true)
                     .streamIfLastWasStream()
                     .start();
@@ -640,7 +635,7 @@ public abstract class PlaybackController {
 
     public Playable getMedia() {
         if (media == null) {
-            media = PlayableUtils.createInstanceFromPreferences(activity);
+            media = PlayableUtils.createInstanceFromPreferences(context);
         }
         return media;
     }
@@ -696,7 +691,7 @@ public abstract class PlaybackController {
     }
 
     public boolean canSetPlaybackSpeed() {
-        return org.antennapod.audio.MediaPlayer.isPrestoLibraryInstalled(activity.getApplicationContext())
+        return org.antennapod.audio.MediaPlayer.isPrestoLibraryInstalled(context.getApplicationContext())
                 || UserPreferences.useSonic()
                 || Build.VERSION.SDK_INT >= 23
                 || playbackService != null && playbackService.canSetSpeed();
@@ -780,11 +775,11 @@ public abstract class PlaybackController {
     }
 
     private void initServiceNotRunning() {
-        if (getMedia() == null) {
+        if (getMedia() == null || getPlayButton() == null) {
             return;
         }
         if (getMedia().getMediaType() == MediaType.AUDIO) {
-            TypedArray res = activity.obtainStyledAttributes(new int[]{
+            TypedArray res = context.obtainStyledAttributes(new int[]{
                     de.danoeh.antennapod.core.R.attr.av_play_big});
             getPlayButton().setImageResource(
                     res.getResourceId(0, de.danoeh.antennapod.core.R.drawable.ic_play_arrow_grey600_36dp));
@@ -804,7 +799,7 @@ public abstract class PlaybackController {
         @Override
         public void run() {
             if (playbackService != null && playbackService.getStatus() == PlayerStatus.PLAYING) {
-                activity.runOnUiThread(PlaybackController.this::onPositionObserverUpdate);
+                PlaybackController.this.onPositionObserverUpdate();
             }
         }
     }

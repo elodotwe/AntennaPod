@@ -97,7 +97,7 @@ public abstract class MediaplayerActivity extends CastEnabledActivity implements
 
             @Override
             public void onPositionObserverUpdate() {
-                MediaplayerActivity.this.onPositionObserverUpdate();
+                runOnUiThread(MediaplayerActivity.this::onPositionObserverUpdate);
             }
 
             @Override
