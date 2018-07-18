@@ -67,6 +67,7 @@ import de.danoeh.antennapod.fragment.PlaybackHistoryFragment;
 import de.danoeh.antennapod.fragment.QueueFragment;
 import de.danoeh.antennapod.fragment.SubscriptionFragment;
 import de.danoeh.antennapod.menuhandler.NavDrawerActivity;
+import de.danoeh.antennapod.sdl.SdlReceiver;
 import de.greenrobot.event.EventBus;
 import rx.Observable;
 import rx.Subscription;
@@ -125,6 +126,8 @@ public class MainActivity extends CastEnabledActivity implements NavDrawerActivi
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
+        SdlReceiver.queryForConnectedService(this);
+
         setTheme(UserPreferences.getNoTitleTheme());
         super.onCreate(savedInstanceState);
         StorageUtils.checkStorageAvailability(this);
