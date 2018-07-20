@@ -389,7 +389,7 @@ public class SdlService extends Service implements IProxyListenerALM {
         try {
             proxy.sendRPCRequest(subscribeButton);
         } catch (SdlException e) {
-            Log.e(TAG, "onOnHMIStatus: Unable to subscribe to button " + buttonName.name(), e);
+            Log.e(TAG, "subscribeButton: Unable to subscribe to button " + buttonName.name(), e);
         }
     }
 
