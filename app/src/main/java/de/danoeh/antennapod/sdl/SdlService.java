@@ -4,6 +4,7 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
+import android.content.ContentProvider;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
@@ -98,10 +99,15 @@ import org.json.JSONException;
 
 import java.util.concurrent.TimeUnit;
 
+import de.danoeh.antennapod.core.event.MessageEvent;
+import de.danoeh.antennapod.core.event.ProgressEvent;
+import de.danoeh.antennapod.core.event.QueueEvent;
+import de.danoeh.antennapod.core.event.ServiceEvent;
 import de.danoeh.antennapod.core.preferences.UserPreferences;
 import de.danoeh.antennapod.core.service.playback.PlayerStatus;
 import de.danoeh.antennapod.core.util.playback.Playable;
 import de.danoeh.antennapod.core.util.playback.PlaybackController;
+import de.greenrobot.event.EventBus;
 
 public class SdlService extends Service implements IProxyListenerALM {
     private final static int NOTIFICATION_ID = 1; // Chosen randomly by rolling a 6 sided die
@@ -134,8 +140,8 @@ public class SdlService extends Service implements IProxyListenerALM {
     private StartTime toStartTime(int msec) {
         StartTime startTime = new StartTime();
         startTime.setHours((int)TimeUnit.MILLISECONDS.toHours(msec));
-        startTime.setMinutes((int)TimeUnit.MILLISECONDS.toMinutes(msec));
-        startTime.setSeconds((int)TimeUnit.MILLISECONDS.toSeconds(msec));
+        startTime.setMinutes((int)TimeUnit.MILLISECONDS.toMinutes(msec) % 60);
+        startTime.setSeconds((int)TimeUnit.MILLISECONDS.toSeconds(msec) % 60);
         return startTime;
     }
 
@@ -155,6 +161,7 @@ public class SdlService extends Service implements IProxyListenerALM {
                 mediaClockTimer.setStartTime(toStartTime(cur));
                 mediaClockTimer.setEndTime(toStartTime(dur));
                 mediaClockTimer.setUpdateMode(playbackController.getStatus() == PlayerStatus.PLAYING ? UpdateMode.COUNTUP : UpdateMode.PAUSE);
+                Log.d(TAG, "onPositionObserverUpdate: SetMediaClockTimer to be sent: " + serializeOrFart(mediaClockTimer));
                 sendRPCDammit(mediaClockTimer);
             }
 
@@ -279,7 +286,17 @@ public class SdlService extends Service implements IProxyListenerALM {
             stopForeground(true);
         }
 
+        if (playbackController.getStatus() == PlayerStatus.PLAYING) {
+            playbackController.playPause();
+        }
+
+        if (playbackController != null) {
+            playbackController.release();
+        }
+
         playbackController = null;
+
+        EventBus.getDefault().unregister(this);
 
         super.onDestroy();
     }
@@ -288,6 +305,10 @@ public class SdlService extends Service implements IProxyListenerALM {
     public void onCreate() {
         Log.i(TAG, "onCreate");
         super.onCreate();
+
+        EventBus.getDefault().register(this);
+
+
 
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
@@ -303,7 +324,57 @@ public class SdlService extends Service implements IProxyListenerALM {
             startForeground(NOTIFICATION_ID, serviceNotification);
         }
 
+        if (playbackController != null) {
+            playbackController.release();
+        }
+
         playbackController = newPlaybackController();
+        playbackController.init();
+    }
+
+    // Not unused--called via Reflection by EventBus.
+    @SuppressWarnings("unused")
+    public void onEvent(QueueEvent event) {
+        Log.d(TAG, "onEvent(" + event + ")");
+        // we are only interested in the number of queue items, not download status or position
+        if(event.action == QueueEvent.Action.DELETED_MEDIA ||
+                event.action == QueueEvent.Action.SORTED ||
+                event.action == QueueEvent.Action.MOVED) {
+            return;
+        }
+
+    }
+
+    // Not unused--called via Reflection by EventBus.
+    @SuppressWarnings("unused")
+    public void onEventMainThread(ServiceEvent event) {
+        Log.d(TAG, "onEvent(" + event + ")");
+        switch(event.action) {
+            case SERVICE_STARTED:
+                playbackController.init();
+                break;
+        }
+    }
+
+    // Not unused--called via Reflection by EventBus.
+    @SuppressWarnings("unused")
+    public void onEventMainThread(ProgressEvent event) {
+        Log.d(TAG, "onEvent(" + event + ")");
+        switch(event.action) {
+            case START:
+
+                break;
+            case END:
+
+                break;
+        }
+    }
+
+    // Not unused--called via Reflection by EventBus.
+    @SuppressWarnings("unused")
+    public void onEventMainThread(MessageEvent event) {
+        Log.d(TAG, "onEvent(" + event + ")");
+
     }
 
     @Nullable
@@ -341,6 +412,12 @@ public class SdlService extends Service implements IProxyListenerALM {
     public void onProxyClosed(String info, Exception e, SdlDisconnectedReason reason) {
         Log.e(TAG, "onProxyClosed; spinning down service. info = " + info + "; reason = " + reason.name(), e);
         stopSelf();
+        if(reason.equals(SdlDisconnectedReason.LANGUAGE_CHANGE)){
+            Log.i(TAG, "onProxyClosed: Language change detected, restarting SdlService");
+            Intent intent = new Intent(TransportConstants.START_ROUTER_SERVICE_ACTION);
+            intent.putExtra(SdlReceiver.RECONNECT_LANG_CHANGE, true);
+            sendBroadcast(intent);
+        }
     }
 
     @Override
