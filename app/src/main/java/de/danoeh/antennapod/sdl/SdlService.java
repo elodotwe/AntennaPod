@@ -403,6 +403,12 @@ public class SdlService extends Service implements IProxyListenerALM {
                 subscribeButton(ButtonName.SEEKLEFT);
                 subscribeButton(ButtonName.SEEKRIGHT);
 
+                // Start playback if it isn't already. User expects audio to start when we are
+                // foregrounded.
+                if (playbackController.getStatus() != PlayerStatus.PLAYING) {
+                    playbackController.playPause();
+                }
+
                 isFirstRun = false;
             }
         }
