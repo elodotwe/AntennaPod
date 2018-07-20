@@ -15,6 +15,7 @@ import android.widget.ImageButton;
 
 import com.smartdevicelink.exception.SdlException;
 import com.smartdevicelink.proxy.RPCRequest;
+import com.smartdevicelink.proxy.RPCResponse;
 import com.smartdevicelink.proxy.RPCStruct;
 import com.smartdevicelink.proxy.SdlProxyALM;
 import com.smartdevicelink.proxy.callbacks.OnServiceEnded;
@@ -61,12 +62,14 @@ import com.smartdevicelink.proxy.rpc.OnVehicleData;
 import com.smartdevicelink.proxy.rpc.OnWayPointChange;
 import com.smartdevicelink.proxy.rpc.PerformAudioPassThruResponse;
 import com.smartdevicelink.proxy.rpc.PerformInteractionResponse;
+import com.smartdevicelink.proxy.rpc.PutFile;
 import com.smartdevicelink.proxy.rpc.PutFileResponse;
 import com.smartdevicelink.proxy.rpc.ReadDIDResponse;
 import com.smartdevicelink.proxy.rpc.ResetGlobalPropertiesResponse;
 import com.smartdevicelink.proxy.rpc.ScrollableMessageResponse;
 import com.smartdevicelink.proxy.rpc.SendHapticDataResponse;
 import com.smartdevicelink.proxy.rpc.SendLocationResponse;
+import com.smartdevicelink.proxy.rpc.SetAppIcon;
 import com.smartdevicelink.proxy.rpc.SetAppIconResponse;
 import com.smartdevicelink.proxy.rpc.SetDisplayLayoutResponse;
 import com.smartdevicelink.proxy.rpc.SetGlobalPropertiesResponse;
@@ -77,6 +80,7 @@ import com.smartdevicelink.proxy.rpc.Show;
 import com.smartdevicelink.proxy.rpc.ShowConstantTbtResponse;
 import com.smartdevicelink.proxy.rpc.ShowResponse;
 import com.smartdevicelink.proxy.rpc.SliderResponse;
+import com.smartdevicelink.proxy.rpc.SoftButton;
 import com.smartdevicelink.proxy.rpc.SpeakResponse;
 import com.smartdevicelink.proxy.rpc.StartTime;
 import com.smartdevicelink.proxy.rpc.StreamRPCResponse;
@@ -90,15 +94,24 @@ import com.smartdevicelink.proxy.rpc.UnsubscribeVehicleDataResponse;
 import com.smartdevicelink.proxy.rpc.UnsubscribeWayPointsResponse;
 import com.smartdevicelink.proxy.rpc.UpdateTurnListResponse;
 import com.smartdevicelink.proxy.rpc.enums.ButtonName;
+import com.smartdevicelink.proxy.rpc.enums.FileType;
 import com.smartdevicelink.proxy.rpc.enums.HMILevel;
 import com.smartdevicelink.proxy.rpc.enums.SdlDisconnectedReason;
+import com.smartdevicelink.proxy.rpc.enums.SoftButtonType;
 import com.smartdevicelink.proxy.rpc.enums.UpdateMode;
+import com.smartdevicelink.proxy.rpc.listeners.OnRPCResponseListener;
 import com.smartdevicelink.transport.TransportConstants;
 
 import org.json.JSONException;
 
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
+import de.danoeh.antennapod.R;
 import de.danoeh.antennapod.core.event.MessageEvent;
 import de.danoeh.antennapod.core.event.ProgressEvent;
 import de.danoeh.antennapod.core.event.QueueEvent;
@@ -113,6 +126,8 @@ public class SdlService extends Service implements IProxyListenerALM {
     private final static int NOTIFICATION_ID = 1; // Chosen randomly by rolling a 6 sided die
     private final static String NOTIF_CHANNEL_ID = "AntennaPod";
     private final static String TAG = "SdlService";
+    private static final int NEXT_SOFTBUTTON_ID = 1;
+    private static final int PREV_SOFTBUTTON_ID = 2;
 
     //The proxy handles communication between the application and SDL
     private SdlProxyALM proxy = null;
@@ -130,10 +145,11 @@ public class SdlService extends Service implements IProxyListenerALM {
     }
 
     private void sendRPCDammit(RPCRequest rpcRequest) {
+        Log.d(TAG, "sendRPCDammit: Sending " + serializeOrFart(rpcRequest));
         try {
             proxy.sendRPCRequest(rpcRequest);
         } catch (SdlException e) {
-            Log.e(TAG, "sendRPCDammit: Couldn't send request " + serializeOrFart(rpcRequest), e);
+            Log.e(TAG, "sendRPCDammit: Couldn't send request...", e);
         }
     }
 
@@ -393,6 +409,37 @@ public class SdlService extends Service implements IProxyListenerALM {
         }
     }
 
+    /**
+     * Helper method to take resource files and turn them into byte arrays
+     * @param resource Resource file id.
+     * @return Resulting byte array.
+     */
+    private byte[] contentsOfResource(int resource) {
+        InputStream is = null;
+        try {
+            is = getResources().openRawResource(resource);
+            ByteArrayOutputStream os = new ByteArrayOutputStream(is.available());
+            final int bufferSize = 4096;
+            final byte[] buffer = new byte[bufferSize];
+            int available;
+            while ((available = is.read(buffer)) >= 0) {
+                os.write(buffer, 0, available);
+            }
+            return os.toByteArray();
+        } catch (IOException e) {
+            Log.w(TAG, "Can't read icon file", e);
+            return null;
+        } finally {
+            if (is != null) {
+                try {
+                    is.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+    }
+
     @Override
     public void onOnHMIStatus(OnHMIStatus notification) {
         Log.d(TAG, "onOnHMIStatus() called with: notification = [" + serializeOrFart(notification) + "]");
@@ -408,6 +455,36 @@ public class SdlService extends Service implements IProxyListenerALM {
                 if (playbackController.getStatus() != PlayerStatus.PLAYING) {
                     playbackController.playPause();
                 }
+
+                Show show = new Show();
+                show.setMainField1("Loading...");
+                List<SoftButton> softButtons = new ArrayList<>();
+                SoftButton softButton = new SoftButton();
+                softButton.setText("Prev");
+                softButton.setSoftButtonID(PREV_SOFTBUTTON_ID);
+                softButton.setType(SoftButtonType.SBT_TEXT);
+                softButtons.add(softButton);
+                softButton = new SoftButton();
+                softButton.setText("Next");
+                softButton.setSoftButtonID(NEXT_SOFTBUTTON_ID);
+                softButton.setType(SoftButtonType.SBT_TEXT);
+                softButtons.add(softButton);
+                show.setSoftButtons(softButtons);
+                sendRPCDammit(show);
+
+                PutFile putFile = new PutFile();
+                putFile.setFileType(FileType.GRAPHIC_PNG);
+                putFile.setSdlFileName("logo.png");
+                putFile.setOnRPCResponseListener(new OnRPCResponseListener() {
+                    @Override
+                    public void onResponse(int correlationId, RPCResponse response) {
+                        SetAppIcon setAppIcon = new SetAppIcon();
+                        setAppIcon.setSdlFileName("logo.png");
+                        sendRPCDammit(setAppIcon);
+                    }
+                });
+                putFile.setFileData(contentsOfResource(R.raw.ic_launcher));
+                sendRPCDammit(putFile);
 
                 isFirstRun = false;
             }
@@ -548,6 +625,15 @@ public class SdlService extends Service implements IProxyListenerALM {
                 Log.i(TAG, "onOnButtonPress: SEEKRIGHT pressed");
                 playbackController.seekTo(playbackController.getPosition() + (UserPreferences.getFastForwardSecs() * 1000));
                 break;
+            case CUSTOM_BUTTON:
+                Log.i(TAG, "onOnButtonPress: CUSTOM: " + notification.getCustomButtonName());
+                switch (notification.getCustomButtonName()) {
+                    case PREV_SOFTBUTTON_ID:
+                        Log.i(TAG, "onOnButtonPress: Previous button pressed, maybe going back?");
+                        break;
+                    case NEXT_SOFTBUTTON_ID:
+                        Log.i(TAG, "onOnButtonPress: Next button pressed, going to next episode?");
+                }
         }
     }
 
