@@ -4,7 +4,6 @@ import android.app.Notification;
 import android.app.NotificationChannel;
 import android.app.NotificationManager;
 import android.app.Service;
-import android.content.ContentProvider;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
@@ -116,8 +115,11 @@ import de.danoeh.antennapod.core.event.MessageEvent;
 import de.danoeh.antennapod.core.event.ProgressEvent;
 import de.danoeh.antennapod.core.event.QueueEvent;
 import de.danoeh.antennapod.core.event.ServiceEvent;
+import de.danoeh.antennapod.core.feed.FeedItem;
+import de.danoeh.antennapod.core.feed.FeedMedia;
 import de.danoeh.antennapod.core.preferences.UserPreferences;
 import de.danoeh.antennapod.core.service.playback.PlayerStatus;
+import de.danoeh.antennapod.core.storage.DBTasks;
 import de.danoeh.antennapod.core.util.playback.Playable;
 import de.danoeh.antennapod.core.util.playback.PlaybackController;
 import de.greenrobot.event.EventBus;
@@ -635,10 +637,45 @@ public class SdlService extends Service implements IProxyListenerALM {
                 switch (notification.getCustomButtonName()) {
                     case PREV_SOFTBUTTON_ID:
                         Log.i(TAG, "onOnButtonPress: Previous button pressed, maybe going back?");
+                        playPrevNext(true);
                         break;
                     case NEXT_SOFTBUTTON_ID:
                         Log.i(TAG, "onOnButtonPress: Next button pressed, going to next episode?");
+                        playPrevNext(false);
                 }
+        }
+    }
+
+    private void playPrevNext(boolean isPrev) {
+        if (playbackController.getStatus() != PlayerStatus.PLAYING) {
+            playbackController.playPause();
+            return;
+        }
+
+        FeedItem item = getPrevNext(isPrev);
+        if (item != null) {
+            DBTasks.playMedia(this, item.getMedia(), false, true, false);
+        }
+    }
+
+    private FeedItem getPrevNext(boolean isPrev) {
+        if (!(playbackController.getMedia() instanceof FeedMedia)) {
+            Log.i(TAG, "getPrevNext: Current media not a FeedMedia");
+            return null;
+        }
+
+        FeedMedia media = (FeedMedia)playbackController.getMedia();
+        if (media.getItem() == null) {
+            Log.i(TAG, "getPrevNext: Current media has no item");
+            return null;
+        }
+
+        FeedItem item = media.getItem();
+
+        if (isPrev) {
+            return DBTasks.getQueuePrecursorOfItem(item.getId(), null);
+        } else {
+            return DBTasks.getQueueSuccessorOfItem(item.getId(), null);
         }
     }
 
