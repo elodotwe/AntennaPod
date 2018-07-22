@@ -135,6 +135,7 @@ public class SdlService extends Service implements IProxyListenerALM {
     private boolean isFirstRun = true;
 
     private PlaybackController playbackController = null;
+    private boolean newlyRegistered = true;
 
     private String serializeOrFart(RPCStruct struct) {
         try {
@@ -444,6 +445,24 @@ public class SdlService extends Service implements IProxyListenerALM {
     public void onOnHMIStatus(OnHMIStatus notification) {
         Log.d(TAG, "onOnHMIStatus() called with: notification = [" + serializeOrFart(notification) + "]");
 
+        if (newlyRegistered) {
+            PutFile putFile = new PutFile();
+            putFile.setFileType(FileType.GRAPHIC_PNG);
+            putFile.setSdlFileName("logo.png");
+            putFile.setOnRPCResponseListener(new OnRPCResponseListener() {
+                @Override
+                public void onResponse(int correlationId, RPCResponse response) {
+                    SetAppIcon setAppIcon = new SetAppIcon();
+                    setAppIcon.setSdlFileName("logo.png");
+                    sendRPCDammit(setAppIcon);
+                }
+            });
+            putFile.setFileData(contentsOfResource(R.raw.ic_launcher));
+            sendRPCDammit(putFile);
+
+            newlyRegistered = false;
+        }
+
         if (notification.getHmiLevel() == HMILevel.HMI_FULL) {
             if (isFirstRun) {
                 subscribeButton(ButtonName.OK);
@@ -471,20 +490,6 @@ public class SdlService extends Service implements IProxyListenerALM {
                 softButtons.add(softButton);
                 show.setSoftButtons(softButtons);
                 sendRPCDammit(show);
-
-                PutFile putFile = new PutFile();
-                putFile.setFileType(FileType.GRAPHIC_PNG);
-                putFile.setSdlFileName("logo.png");
-                putFile.setOnRPCResponseListener(new OnRPCResponseListener() {
-                    @Override
-                    public void onResponse(int correlationId, RPCResponse response) {
-                        SetAppIcon setAppIcon = new SetAppIcon();
-                        setAppIcon.setSdlFileName("logo.png");
-                        sendRPCDammit(setAppIcon);
-                    }
-                });
-                putFile.setFileData(contentsOfResource(R.raw.ic_launcher));
-                sendRPCDammit(putFile);
 
                 isFirstRun = false;
             }
