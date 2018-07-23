@@ -10,7 +10,6 @@ import android.os.Build;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
 import android.util.Log;
-import android.widget.ImageButton;
 
 import com.smartdevicelink.exception.SdlException;
 import com.smartdevicelink.proxy.RPCRequest;
@@ -111,20 +110,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import de.danoeh.antennapod.R;
-import de.danoeh.antennapod.core.event.MessageEvent;
-import de.danoeh.antennapod.core.event.ProgressEvent;
-import de.danoeh.antennapod.core.event.QueueEvent;
-import de.danoeh.antennapod.core.event.ServiceEvent;
-import de.danoeh.antennapod.core.feed.FeedItem;
-import de.danoeh.antennapod.core.feed.FeedMedia;
-import de.danoeh.antennapod.core.preferences.UserPreferences;
-import de.danoeh.antennapod.core.service.playback.PlayerStatus;
-import de.danoeh.antennapod.core.storage.DBTasks;
-import de.danoeh.antennapod.core.util.playback.Playable;
-import de.danoeh.antennapod.core.util.playback.PlaybackController;
-import de.greenrobot.event.EventBus;
 
-public class SdlService extends Service implements IProxyListenerALM {
+public class SdlService extends Service implements IProxyListenerALM, PlayerFacade.Listener {
     private final static int NOTIFICATION_ID = 1; // Chosen randomly by rolling a 6 sided die
     private final static String NOTIF_CHANNEL_ID = "AntennaPod";
     private final static String TAG = "SdlService";
@@ -136,7 +123,7 @@ public class SdlService extends Service implements IProxyListenerALM {
 
     private boolean isFirstRun = true;
 
-    private PlaybackController playbackController = null;
+    private PlayerFacade playerFacade = null;
     private boolean newlyRegistered = true;
 
     private String serializeOrFart(RPCStruct struct) {
@@ -164,124 +151,7 @@ public class SdlService extends Service implements IProxyListenerALM {
         return startTime;
     }
 
-    private PlaybackController newPlaybackController() {
-        return new PlaybackController(this, false) {
 
-            @Override
-            public void setupGUI() {
-
-            }
-
-            @Override
-            public void onPositionObserverUpdate() {
-                int cur = playbackController.getPosition();
-                int dur = playbackController.getDuration();
-                SetMediaClockTimer mediaClockTimer = new SetMediaClockTimer();
-                mediaClockTimer.setStartTime(toStartTime(cur));
-                mediaClockTimer.setEndTime(toStartTime(dur));
-                mediaClockTimer.setUpdateMode(playbackController.getStatus() == PlayerStatus.PLAYING ? UpdateMode.COUNTUP : UpdateMode.PAUSE);
-                Log.d(TAG, "onPositionObserverUpdate: SetMediaClockTimer to be sent: " + serializeOrFart(mediaClockTimer));
-                sendRPCDammit(mediaClockTimer);
-            }
-
-            @Override
-            public void onBufferStart() {
-
-            }
-
-            @Override
-            public void onBufferEnd() {
-
-            }
-
-            @Override
-            public void onBufferUpdate(float progress) {
-
-            }
-
-            @Override
-            public void handleError(int code) {
-
-            }
-
-            @Override
-            public void onReloadNotification(int code) {
-
-            }
-
-            @Override
-            public void onSleepTimerUpdate() {
-
-            }
-
-            @Override
-            public ImageButton getPlayButton() {
-                return null;
-            }
-
-            @Override
-            public void postStatusMsg(int msg, boolean showToast) {
-
-            }
-
-            @Override
-            public void clearStatusMsg() {
-
-            }
-
-            @Override
-            public boolean loadMediaInfo() {
-                Playable playable = playbackController.getMedia();
-                if (playable == null) return false;
-
-                Show show = new Show();
-                show.setMainField1(playable.getEpisodeTitle());
-                show.setMainField2(playable.getFeedTitle());
-                sendRPCDammit(show);
-                onPositionObserverUpdate();
-                return true;
-            }
-
-            @Override
-            public void onAwaitingVideoSurface() {
-
-            }
-
-            @Override
-            public void onServiceQueried() {
-
-            }
-
-            @Override
-            public void onShutdownNotification() {
-
-            }
-
-            @Override
-            public void onPlaybackEnd() {
-                Show show = new Show();
-                show.setMainField1("");
-                show.setMainField2("");
-                sendRPCDammit(show);
-            }
-
-            @Override
-            public void onPlaybackSpeedChange() {
-
-            }
-
-            @Override
-            protected void setScreenOn(boolean enable) {
-                super.setScreenOn(enable);
-
-            }
-
-            @Override
-            public void onSetSpeedAbilityChanged() {
-
-            }
-        };
-    }
 
     @Override
     public void onDestroy() {
@@ -305,17 +175,12 @@ public class SdlService extends Service implements IProxyListenerALM {
             stopForeground(true);
         }
 
-        if (playbackController.getStatus() == PlayerStatus.PLAYING) {
-            playbackController.playPause();
+        playerFacade.pause();
+
+        if (playerFacade != null) {
+            playerFacade.release();
         }
-
-        if (playbackController != null) {
-            playbackController.release();
-        }
-
-        playbackController = null;
-
-        EventBus.getDefault().unregister(this);
+        playerFacade = null;
 
         super.onDestroy();
     }
@@ -324,10 +189,6 @@ public class SdlService extends Service implements IProxyListenerALM {
     public void onCreate() {
         Log.i(TAG, "onCreate");
         super.onCreate();
-
-        EventBus.getDefault().register(this);
-
-
 
         if(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
@@ -343,57 +204,7 @@ public class SdlService extends Service implements IProxyListenerALM {
             startForeground(NOTIFICATION_ID, serviceNotification);
         }
 
-        if (playbackController != null) {
-            playbackController.release();
-        }
-
-        playbackController = newPlaybackController();
-        playbackController.init();
-    }
-
-    // Not unused--called via Reflection by EventBus.
-    @SuppressWarnings("unused")
-    public void onEvent(QueueEvent event) {
-        Log.d(TAG, "onEvent(" + event + ")");
-        // we are only interested in the number of queue items, not download status or position
-        if(event.action == QueueEvent.Action.DELETED_MEDIA ||
-                event.action == QueueEvent.Action.SORTED ||
-                event.action == QueueEvent.Action.MOVED) {
-            return;
-        }
-
-    }
-
-    // Not unused--called via Reflection by EventBus.
-    @SuppressWarnings("unused")
-    public void onEventMainThread(ServiceEvent event) {
-        Log.d(TAG, "onEvent(" + event + ")");
-        switch(event.action) {
-            case SERVICE_STARTED:
-                playbackController.init();
-                break;
-        }
-    }
-
-    // Not unused--called via Reflection by EventBus.
-    @SuppressWarnings("unused")
-    public void onEventMainThread(ProgressEvent event) {
-        Log.d(TAG, "onEvent(" + event + ")");
-        switch(event.action) {
-            case START:
-
-                break;
-            case END:
-
-                break;
-        }
-    }
-
-    // Not unused--called via Reflection by EventBus.
-    @SuppressWarnings("unused")
-    public void onEventMainThread(MessageEvent event) {
-        Log.d(TAG, "onEvent(" + event + ")");
-
+        playerFacade = new PlayerFacade(this, this);
     }
 
     @Nullable
@@ -473,9 +284,7 @@ public class SdlService extends Service implements IProxyListenerALM {
 
                 // Start playback if it isn't already. User expects audio to start when we are
                 // foregrounded.
-                if (playbackController.getStatus() != PlayerStatus.PLAYING) {
-                    playbackController.playPause();
-                }
+                playerFacade.play();
 
                 Show show = new Show();
                 show.setMainField1("Loading...");
@@ -622,60 +431,27 @@ public class SdlService extends Service implements IProxyListenerALM {
         switch (notification.getButtonName()) {
             case OK:
                 Log.i(TAG, "onOnButtonPress: OK (play/pause) pressed");
-                playbackController.playPause();
+                playerFacade.togglePlayPause();
                 break;
             case SEEKLEFT:
                 Log.i(TAG, "onOnButtonPress: SEEKLEFT pressed");
-                playbackController.seekTo(playbackController.getPosition() - (UserPreferences.getRewindSecs() * 1000));
+                playerFacade.jumpBackward();
                 break;
             case SEEKRIGHT:
                 Log.i(TAG, "onOnButtonPress: SEEKRIGHT pressed");
-                playbackController.seekTo(playbackController.getPosition() + (UserPreferences.getFastForwardSecs() * 1000));
+                playerFacade.jumpForward();
                 break;
             case CUSTOM_BUTTON:
                 Log.i(TAG, "onOnButtonPress: CUSTOM: " + notification.getCustomButtonName());
                 switch (notification.getCustomButtonName()) {
                     case PREV_SOFTBUTTON_ID:
                         Log.i(TAG, "onOnButtonPress: Previous button pressed, maybe going back?");
-                        playPrevNext(true);
+                        playerFacade.previous();
                         break;
                     case NEXT_SOFTBUTTON_ID:
                         Log.i(TAG, "onOnButtonPress: Next button pressed, going to next episode?");
-                        playPrevNext(false);
+                        playerFacade.next();
                 }
-        }
-    }
-
-    private void playPrevNext(boolean isPrev) {
-        if (playbackController.getStatus() != PlayerStatus.PLAYING) {
-            playbackController.playPause();
-            return;
-        }
-
-        FeedItem item = getPrevNext(isPrev);
-        if (item != null) {
-            DBTasks.playMedia(this, item.getMedia(), false, true, false);
-        }
-    }
-
-    private FeedItem getPrevNext(boolean isPrev) {
-        if (!(playbackController.getMedia() instanceof FeedMedia)) {
-            Log.i(TAG, "getPrevNext: Current media not a FeedMedia");
-            return null;
-        }
-
-        FeedMedia media = (FeedMedia)playbackController.getMedia();
-        if (media.getItem() == null) {
-            Log.i(TAG, "getPrevNext: Current media has no item");
-            return null;
-        }
-
-        FeedItem item = media.getItem();
-
-        if (isPrev) {
-            return DBTasks.getQueuePrecursorOfItem(item.getId(), null);
-        } else {
-            return DBTasks.getQueueSuccessorOfItem(item.getId(), null);
         }
     }
 
@@ -932,5 +708,31 @@ public class SdlService extends Service implements IProxyListenerALM {
     @Override
     public void onSendHapticDataResponse(SendHapticDataResponse response) {
         Log.d(TAG, "onSendHapticDataResponse() called with: response = [" + serializeOrFart(response) + "]");
+    }
+
+    @Override
+    public void onPositionUpdate(int positionMsec, int durationMsec) {
+        SetMediaClockTimer mediaClockTimer = new SetMediaClockTimer();
+        mediaClockTimer.setStartTime(toStartTime(positionMsec));
+        mediaClockTimer.setEndTime(toStartTime(durationMsec));
+        mediaClockTimer.setUpdateMode(playerFacade.isPlaying() ? UpdateMode.COUNTUP : UpdateMode.PAUSE);
+        Log.d(TAG, "onPositionObserverUpdate: SetMediaClockTimer to be sent: " + serializeOrFart(mediaClockTimer));
+        sendRPCDammit(mediaClockTimer);
+    }
+
+    @Override
+    public void onMediaInfoUpdate(String episodeTitle, String feedTitle) {
+        Show show = new Show();
+        show.setMainField1(episodeTitle);
+        show.setMainField2(feedTitle);
+        sendRPCDammit(show);
+    }
+
+    @Override
+    public void onPlaybackEnd() {
+        Show show = new Show();
+        show.setMainField1("");
+        show.setMainField2("");
+        sendRPCDammit(show);
     }
 }

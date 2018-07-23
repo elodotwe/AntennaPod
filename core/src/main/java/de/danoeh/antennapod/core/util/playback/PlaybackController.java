@@ -578,33 +578,64 @@ public abstract class PlaybackController {
     }
 
     public void playPause() {
+        playPause(DesiredPlaybackOperation.TOGGLE);
+    }
+
+    public enum DesiredPlaybackOperation {
+        PLAYING,
+        PAUSED,
+        TOGGLE
+    }
+
+    public void playPause(DesiredPlaybackOperation playbackOperation) {
         if (playbackService == null) {
-            new PlaybackServiceStarter(context, media)
-                    .startWhenPrepared(true)
-                    .streamIfLastWasStream()
-                    .start();
-            Log.w(TAG, "Play/Pause button was pressed, but playbackservice was null!");
+            if (playbackOperation != DesiredPlaybackOperation.PAUSED) {
+                new PlaybackServiceStarter(context, media)
+                        .startWhenPrepared(true)
+                        .streamIfLastWasStream()
+                        .start();
+                Log.w(TAG, "Play/Pause button was pressed, but playbackservice was null!");
+            }
             return;
         }
         switch (status) {
             case PLAYING:
-                playbackService.pause(true, reinitOnPause);
+                if (playbackOperation != DesiredPlaybackOperation.PLAYING)
+                    playbackService.pause(true, reinitOnPause);
                 break;
             case PAUSED:
             case PREPARED:
-                playbackService.resume();
+                if (playbackOperation != DesiredPlaybackOperation.PAUSED)
+                    playbackService.resume();
                 break;
             case PREPARING:
-                playbackService.setStartWhenPrepared(!playbackService
-                        .isStartWhenPrepared());
-                if (reinitOnPause
+                boolean changed = false;
+                if (playbackOperation == DesiredPlaybackOperation.PLAYING) {
+                    if (!playbackService.isStartWhenPrepared()) {
+                        playbackService.setStartWhenPrepared(true);
+                        changed = true;
+                    }
+                } else if (playbackOperation == DesiredPlaybackOperation.PAUSED) {
+                    if (playbackService.isStartWhenPrepared()) {
+                        playbackService.setStartWhenPrepared(false);
+                        changed = true;
+                    }
+                } else {
+                    playbackService.setStartWhenPrepared(!playbackService
+                            .isStartWhenPrepared());
+                    changed = true;
+                }
+
+                if (changed && reinitOnPause
                         && !playbackService.isStartWhenPrepared()) {
                     playbackService.reinit();
                 }
                 break;
             case INITIALIZED:
-                playbackService.setStartWhenPrepared(true);
-                playbackService.prepare();
+                if (playbackOperation != DesiredPlaybackOperation.PAUSED) {
+                    playbackService.setStartWhenPrepared(true);
+                    playbackService.prepare();
+                }
                 break;
         }
     }
