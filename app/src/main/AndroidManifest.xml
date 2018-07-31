@@ -52,7 +52,8 @@
             android:configChanges="keyboardHidden|orientation|screenSize"
             android:launchMode="singleTask"
             android:label="@string/app_name"
-            android:theme="@style/Theme.AntennaPod.Dark.Splash">
+            android:theme="@style/Theme.AntennaPod.Dark.Splash"
+            android:taskAffinity="com.antennapod.main">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
@@ -427,6 +428,17 @@
         <meta-data
                     android:name="com.google.android.gms.car.application"
                     android:resource="@xml/automotive_app_desc"/>
+
+        <activity
+            android:name=".activity.SdlTestActivity"
+            android:label="@string/title_activity_sdl_test"
+            android:taskAffinity="com.antennapod.SDLTest"
+            android:theme="@style/Theme.AntennaPod.Dark">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
     </application>
 
 </manifest>

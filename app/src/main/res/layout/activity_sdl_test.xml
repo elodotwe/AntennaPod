@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.constraint.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/coordinatorLayout"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="de.danoeh.antennapod.activity.SdlTestActivity">
+
+    <include
+        android:id="@+id/include"
+        layout="@layout/content_sdl_test"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content" />
+
+    <TextView
+        android:id="@+id/metadataLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:text="Metadata:"
+        app:layout_anchor="@+id/include"
+        app:layout_anchorGravity="left|top"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/appBarLayout" />
+
+    <TextView
+        android:id="@+id/episodeTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:text="(Episode title--not set yet)"
+        app:layout_anchor="@+id/appBarLayout"
+        app:layout_anchorGravity="bottom|center"
+        app:layout_constraintStart_toEndOf="@+id/episodeTitleLabel"
+        app:layout_constraintTop_toBottomOf="@+id/metadataLabel" />
+
+    <TextView
+        android:id="@+id/feedTitle"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:text="(Feed title--not set yet)"
+        app:layout_constraintStart_toEndOf="@+id/feedTitleLabel"
+        app:layout_constraintTop_toBottomOf="@+id/episodeTitleLabel" />
+
+    <TextView
+        android:id="@+id/episodeTitleLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:text="ET:"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/metadataLabel" />
+
+    <TextView
+        android:id="@+id/feedTitleLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:text="FT:"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/episodeTitleLabel" />
+
+    <TextView
+        android:id="@+id/lastPosLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:text="Last position:"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/feedTitleLabel" />
+
+    <TextView
+        android:id="@+id/lastPosition"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:text="(not yet set)"
+        app:layout_constraintStart_toEndOf="@+id/lastPosLabel"
+        app:layout_constraintTop_toBottomOf="@+id/feedTitle" />
+
+    <TextView
+        android:id="@+id/lastDurationLabel"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:text="Last duration:"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/lastPosLabel" />
+
+    <TextView
+        android:id="@+id/lastDuration"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:text="(not yet set)"
+        app:layout_constraintStart_toEndOf="@+id/lastDurationLabel"
+        app:layout_constraintTop_toBottomOf="@+id/lastPosition" />
+
+    <ImageButton
+        android:id="@+id/rewind"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:onClick="onPrevious"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/lastDurationLabel"
+        app:srcCompat="@drawable/ic_fast_rewind_grey600_24dp" />
+
+    <ImageButton
+        android:id="@+id/play"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:adjustViewBounds="true"
+        android:onClick="onPlay"
+        app:layout_constraintStart_toEndOf="@+id/rewind"
+        app:layout_constraintTop_toBottomOf="@+id/lastDurationLabel"
+        app:srcCompat="@drawable/ic_play_arrow_grey600_24dp" />
+
+    <ImageButton
+        android:id="@+id/pause"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:onClick="onPause"
+        app:layout_constraintStart_toEndOf="@+id/play"
+        app:layout_constraintTop_toBottomOf="@+id/lastDuration"
+        app:srcCompat="@drawable/ic_pause_grey600_24dp" />
+
+    <ImageButton
+        android:id="@+id/fast_fwd"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:onClick="onNext"
+        app:layout_constraintStart_toEndOf="@+id/pause"
+        app:layout_constraintTop_toBottomOf="@+id/lastDuration"
+        app:srcCompat="@drawable/ic_fast_forward_grey600_24dp" />
+
+    <Button
+        android:id="@+id/previous_track"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:onClick="onPreviousTrack"
+        android:text="Prev"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/rewind" />
+
+    <Button
+        android:id="@+id/next_track"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginLeft="8dp"
+        android:layout_marginStart="8dp"
+        android:layout_marginTop="8dp"
+        android:onClick="onNextTrack"
+        android:text="Next"
+        app:layout_constraintStart_toEndOf="@+id/previous_track"
+        app:layout_constraintTop_toBottomOf="@+id/rewind" />
+
+</android.support.constraint.ConstraintLayout>

@@ -20,7 +20,7 @@ import de.greenrobot.event.EventBus;
 public class PlayerFacade {
     private static final String TAG = "PlayerFacade";
 
-    interface Listener {
+    public interface Listener {
         void onPositionUpdate(int positionMsec, int durationMsec);
         void onMediaInfoUpdate(String episodeTitle, String feedTitle);
         void onPlaybackEnd();
@@ -30,7 +30,7 @@ public class PlayerFacade {
     private Context context;
     private PlaybackController playbackController;
 
-    PlayerFacade(Listener listener, Context context) {
+    public PlayerFacade(Listener listener, Context context) {
         this.listener = listener;
         this.context = context;
         playbackController = newPlaybackController();
