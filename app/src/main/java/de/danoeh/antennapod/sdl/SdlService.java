@@ -91,6 +91,7 @@ import com.smartdevicelink.proxy.rpc.UnsubscribeButtonResponse;
 import com.smartdevicelink.proxy.rpc.UnsubscribeVehicleDataResponse;
 import com.smartdevicelink.proxy.rpc.UnsubscribeWayPointsResponse;
 import com.smartdevicelink.proxy.rpc.UpdateTurnListResponse;
+import com.smartdevicelink.proxy.rpc.enums.AudioStreamingState;
 import com.smartdevicelink.proxy.rpc.enums.ButtonName;
 import com.smartdevicelink.proxy.rpc.enums.FileType;
 import com.smartdevicelink.proxy.rpc.enums.HMILevel;
@@ -125,6 +126,7 @@ public class SdlService extends Service implements IProxyListenerALM, PlayerFaca
 
     private PlayerFacade playerFacade = null;
     private boolean newlyRegistered = true;
+    private boolean isInterrupted = false;
 
     private String serializeOrFart(RPCStruct struct) {
         try {
@@ -306,6 +308,18 @@ public class SdlService extends Service implements IProxyListenerALM, PlayerFaca
 
                 isFirstRun = false;
             }
+        }
+
+        if (notification.getAudioStreamingState().equals(AudioStreamingState.NOT_AUDIBLE)) {
+            if (!isInterrupted && playerFacade.isPlaying()) {
+                Log.i(TAG, "onOnHMIStatus: Not audible but was playing. Pausing.");
+                isInterrupted = true;
+                playerFacade.pause();
+            }
+        } else if (isInterrupted) {
+            Log.i(TAG, "onOnHMIStatus: Resuming audio after interruption.");
+            isInterrupted = false;
+            playerFacade.play();
         }
     }
 
