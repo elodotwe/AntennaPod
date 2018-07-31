@@ -112,8 +112,8 @@ import java.util.concurrent.TimeUnit;
 import de.danoeh.antennapod.R;
 
 public class SdlService extends Service implements IProxyListenerALM, PlayerFacade.Listener {
-    private final static int NOTIFICATION_ID = 1; // Chosen randomly by rolling a 6 sided die
-    private final static String NOTIF_CHANNEL_ID = "AntennaPod";
+    private final static int NOTIFICATION_ID = R.id.notification_sdl_persistent;
+    private final static String NOTIF_CHANNEL_ID = "sdl_notif";
     private final static String TAG = "SdlService";
     private static final int NEXT_SOFTBUTTON_ID = 1;
     private static final int PREV_SOFTBUTTON_ID = 2;
@@ -194,12 +194,14 @@ public class SdlService extends Service implements IProxyListenerALM, PlayerFaca
             NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (notificationManager == null) return;
 
-            NotificationChannel channel = new NotificationChannel(NOTIF_CHANNEL_ID, "AntennaPod", NotificationManager.IMPORTANCE_LOW);
+            NotificationChannel channel = new NotificationChannel(NOTIF_CHANNEL_ID, "SDL", NotificationManager.IMPORTANCE_LOW);
+            channel.setDescription("Shows when connecting/connected to your car");
             notificationManager.createNotificationChannel(channel);
-            Notification serviceNotification = new Notification.Builder(this, "AntennaPod")
+            Notification serviceNotification = new Notification.Builder(this, NOTIF_CHANNEL_ID)
             .setContentTitle("AntennaPod SDL")
             .setContentText("AntenaPod is mayhaps connecting to your car.")
                     .setChannelId(NOTIF_CHANNEL_ID)
+                    .setSmallIcon(R.mipmap.ic_launcher)
                     .build();
             startForeground(NOTIFICATION_ID, serviceNotification);
         }
