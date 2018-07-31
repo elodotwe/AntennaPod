@@ -194,7 +194,7 @@ public class SdlService extends Service implements IProxyListenerALM, PlayerFaca
             NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
             if (notificationManager == null) return;
 
-            NotificationChannel channel = new NotificationChannel(NOTIF_CHANNEL_ID, "AntennaPod", NotificationManager.IMPORTANCE_NONE);
+            NotificationChannel channel = new NotificationChannel(NOTIF_CHANNEL_ID, "AntennaPod", NotificationManager.IMPORTANCE_LOW);
             notificationManager.createNotificationChannel(channel);
             Notification serviceNotification = new Notification.Builder(this, "AntennaPod")
             .setContentTitle("AntennaPod SDL")
