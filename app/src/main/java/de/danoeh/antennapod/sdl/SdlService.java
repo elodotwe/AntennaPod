@@ -98,7 +98,6 @@ import com.smartdevicelink.proxy.rpc.enums.SdlDisconnectedReason;
 import com.smartdevicelink.proxy.rpc.enums.SoftButtonType;
 import com.smartdevicelink.proxy.rpc.enums.UpdateMode;
 import com.smartdevicelink.proxy.rpc.listeners.OnRPCResponseListener;
-import com.smartdevicelink.transport.BTTransportConfig;
 import com.smartdevicelink.transport.TransportConstants;
 
 import org.json.JSONException;
@@ -625,7 +624,7 @@ public class SdlService extends Service implements IProxyListenerALM, PlayerFaca
                 //Create a new proxy using Bluetooth transport
                 //The listener, app name,
                 //whether or not it is a media app and the applicationId are supplied.
-                proxy = new SdlProxyALM(this, "AntennaPod", true, "12345678", new BTTransportConfig());
+                proxy = new SdlProxyALM(this.getBaseContext(),this, "AntennaPod", true, "12345678");
             } catch (SdlException e) {
                 //There was an error creating the proxy
                 if (proxy == null) {
