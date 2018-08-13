@@ -4,14 +4,18 @@ import android.content.Context;
 import android.util.Log;
 import android.widget.ImageButton;
 
+import java.util.List;
+
 import de.danoeh.antennapod.core.event.MessageEvent;
 import de.danoeh.antennapod.core.event.ProgressEvent;
 import de.danoeh.antennapod.core.event.QueueEvent;
 import de.danoeh.antennapod.core.event.ServiceEvent;
+import de.danoeh.antennapod.core.feed.Feed;
 import de.danoeh.antennapod.core.feed.FeedItem;
 import de.danoeh.antennapod.core.feed.FeedMedia;
 import de.danoeh.antennapod.core.preferences.UserPreferences;
 import de.danoeh.antennapod.core.service.playback.PlayerStatus;
+import de.danoeh.antennapod.core.storage.DBReader;
 import de.danoeh.antennapod.core.storage.DBTasks;
 import de.danoeh.antennapod.core.util.playback.Playable;
 import de.danoeh.antennapod.core.util.playback.PlaybackController;
@@ -118,6 +122,18 @@ public class PlayerFacade {
 
     public boolean isPlaying() {
         return playbackController.getStatus() == PlayerStatus.PLAYING;
+    }
+
+    public List<Feed> getFeeds() {
+        return DBReader.getFeedList();
+    }
+
+    public List<FeedItem> getQueue() {
+        return DBReader.getQueue();
+    }
+
+    public List<FeedItem> getItemsForFeed(Feed feed) {
+        return DBReader.getFeedItemList(feed);
     }
 
     private void playPrevNext(boolean isPrev) {

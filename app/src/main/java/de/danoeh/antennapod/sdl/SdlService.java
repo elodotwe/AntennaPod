@@ -140,7 +140,7 @@ public class SdlService extends Service implements IProxyListenerALM, PlayerFaca
         Log.d(TAG, "sendRPCDammit: Sending " + serializeOrFart(rpcRequest));
         try {
             proxy.sendRPCRequest(rpcRequest);
-        } catch (SdlException e) {
+        } catch (SdlException|NullPointerException e) {
             Log.e(TAG, "sendRPCDammit: Couldn't send request...", e);
         }
     }
