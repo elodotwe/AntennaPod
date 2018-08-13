@@ -10,6 +10,7 @@ import android.os.Build;
 import android.os.IBinder;
 import android.support.annotation.Nullable;
 import android.util.Log;
+import android.util.SparseArray;
 
 import com.smartdevicelink.exception.SdlException;
 import com.smartdevicelink.proxy.RPCRequest;
@@ -25,6 +26,8 @@ import com.smartdevicelink.proxy.rpc.AlertManeuverResponse;
 import com.smartdevicelink.proxy.rpc.AlertResponse;
 import com.smartdevicelink.proxy.rpc.ButtonPressResponse;
 import com.smartdevicelink.proxy.rpc.ChangeRegistrationResponse;
+import com.smartdevicelink.proxy.rpc.Choice;
+import com.smartdevicelink.proxy.rpc.CreateInteractionChoiceSet;
 import com.smartdevicelink.proxy.rpc.CreateInteractionChoiceSetResponse;
 import com.smartdevicelink.proxy.rpc.DeleteCommandResponse;
 import com.smartdevicelink.proxy.rpc.DeleteFileResponse;
@@ -59,6 +62,7 @@ import com.smartdevicelink.proxy.rpc.OnTouchEvent;
 import com.smartdevicelink.proxy.rpc.OnVehicleData;
 import com.smartdevicelink.proxy.rpc.OnWayPointChange;
 import com.smartdevicelink.proxy.rpc.PerformAudioPassThruResponse;
+import com.smartdevicelink.proxy.rpc.PerformInteraction;
 import com.smartdevicelink.proxy.rpc.PerformInteractionResponse;
 import com.smartdevicelink.proxy.rpc.PutFile;
 import com.smartdevicelink.proxy.rpc.PutFileResponse;
@@ -95,6 +99,8 @@ import com.smartdevicelink.proxy.rpc.enums.AudioStreamingState;
 import com.smartdevicelink.proxy.rpc.enums.ButtonName;
 import com.smartdevicelink.proxy.rpc.enums.FileType;
 import com.smartdevicelink.proxy.rpc.enums.HMILevel;
+import com.smartdevicelink.proxy.rpc.enums.InteractionMode;
+import com.smartdevicelink.proxy.rpc.enums.LayoutMode;
 import com.smartdevicelink.proxy.rpc.enums.SdlDisconnectedReason;
 import com.smartdevicelink.proxy.rpc.enums.SoftButtonType;
 import com.smartdevicelink.proxy.rpc.enums.UpdateMode;
@@ -107,10 +113,16 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import de.danoeh.antennapod.R;
+import de.danoeh.antennapod.core.feed.Feed;
+import de.danoeh.antennapod.core.feed.FeedItem;
+import de.danoeh.antennapod.core.storage.DBTasks;
 
 public class SdlService extends Service implements IProxyListenerALM, PlayerFacade.Listener {
     private final static int NOTIFICATION_ID = R.id.notification_sdl_persistent;
@@ -118,6 +130,13 @@ public class SdlService extends Service implements IProxyListenerALM, PlayerFaca
     private final static String TAG = "SdlService";
     private static final int NEXT_SOFTBUTTON_ID = 1;
     private static final int PREV_SOFTBUTTON_ID = 2;
+    private static final int LIST_SOFTBUTTON_ID = 3;
+    private static final int FEEDS_CHOICESET_ID = 1;
+    //Further choiceset IDs are equal to the Feed's index in the feed list + 2.
+    private static final int FEED_CHOICESET_ID_BASE = 2;
+
+    private SparseArray<FeedItem> feedItemChoiceIDs = new SparseArray<>();
+    private int nextChoiceID = 0;
 
     //The proxy handles communication between the application and SDL
     private SdlProxyALM proxy = null;
@@ -153,7 +172,13 @@ public class SdlService extends Service implements IProxyListenerALM, PlayerFaca
         return startTime;
     }
 
+    private String toHumanTime(int msec) {
+        long h = TimeUnit.MILLISECONDS.toHours(msec);
+        long m = TimeUnit.MILLISECONDS.toMinutes(msec) % 60;
+        long s = TimeUnit.MILLISECONDS.toSeconds(msec) % 60;
 
+        return String.format(Locale.ENGLISH, "%d:%02d:%02d", h,m,s);
+    }
 
     @Override
     public void onDestroy() {
@@ -303,8 +328,54 @@ public class SdlService extends Service implements IProxyListenerALM, PlayerFaca
                 softButton.setSoftButtonID(NEXT_SOFTBUTTON_ID);
                 softButton.setType(SoftButtonType.SBT_TEXT);
                 softButtons.add(softButton);
+
+                softButton = new SoftButton();
+                softButton.setType(SoftButtonType.SBT_TEXT);
+                softButton.setSoftButtonID(LIST_SOFTBUTTON_ID);
+                softButton.setText("List");
+                softButtons.add(softButton);
+
                 show.setSoftButtons(softButtons);
                 sendRPCDammit(show);
+
+                List<Feed> feedList = playerFacade.getFeeds();
+
+                CreateInteractionChoiceSet createChoiceSet = new CreateInteractionChoiceSet();
+                List<Choice> choices = new ArrayList<>();
+                for (Feed feed : feedList) {
+                    Choice choice = new Choice();
+                    choice.setChoiceID(nextChoiceID);
+                    nextChoiceID++;
+                    choice.setMenuName(feed.getTitle());
+                    choice.setSecondaryText(feed.getLastUpdate());
+                    choices.add(choice);
+                }
+                createChoiceSet.setChoiceSet(choices);
+                createChoiceSet.setInteractionChoiceSetID(FEEDS_CHOICESET_ID);
+                sendRPCDammit(createChoiceSet);
+
+                int setID = FEED_CHOICESET_ID_BASE;
+                for (Feed feed : feedList) {
+                    createChoiceSet = new CreateInteractionChoiceSet();
+                    createChoiceSet.setInteractionChoiceSetID(setID);
+                    setID++;
+                    choices = new ArrayList<>();
+                    for (FeedItem feedItem : playerFacade.getItemsForFeed(feed)) {
+                        Choice choice = new Choice();
+                        choice.setChoiceID(nextChoiceID);
+                        feedItemChoiceIDs.append(nextChoiceID, feedItem);
+                        nextChoiceID++;
+                        choice.setMenuName(feedItem.getTitle());
+                        choice.setSecondaryText(feedItem.getDescription());
+                        if (feedItem.getMedia() != null) {
+                            choice.setTertiaryText(toHumanTime(feedItem.getMedia().getDuration()));
+                        }
+                        choices.add(choice);
+                    }
+
+                    createChoiceSet.setChoiceSet(choices);
+                    sendRPCDammit(createChoiceSet);
+                }
 
                 isFirstRun = false;
             }
@@ -408,6 +479,21 @@ public class SdlService extends Service implements IProxyListenerALM, PlayerFaca
     @Override
     public void onPerformInteractionResponse(PerformInteractionResponse response) {
         Log.d(TAG, "onPerformInteractionResponse() called with: response = [" + serializeOrFart(response) + "]");
+        if (response.getChoiceID() == null) return;
+        //if the choice ID isn't associated with a FeedItem, it's associated with a Feed and we need to prompt for that
+        //feed's feeditems.
+        if (feedItemChoiceIDs.get(response.getChoiceID()) == null) {
+            PerformInteraction performInteraction = new PerformInteraction();
+            performInteraction.setInteractionMode(InteractionMode.MANUAL_ONLY);
+            performInteraction.setInteractionLayout(LayoutMode.LIST_ONLY);
+            List<Integer> choiceIds = new ArrayList<>();
+            choiceIds.add(response.getChoiceID() + FEED_CHOICESET_ID_BASE);
+            performInteraction.setInteractionChoiceSetIDList(choiceIds);
+            performInteraction.setInitialText(playerFacade.getFeeds().get(response.getChoiceID()).getTitle());
+            sendRPCDammit(performInteraction);
+        } else {
+            DBTasks.playMedia(this, feedItemChoiceIDs.get(response.getChoiceID()).getMedia(), false, true, false);
+        }
     }
 
     @Override
@@ -467,6 +553,17 @@ public class SdlService extends Service implements IProxyListenerALM, PlayerFaca
                     case NEXT_SOFTBUTTON_ID:
                         Log.i(TAG, "onOnButtonPress: Next button pressed, going to next episode?");
                         playerFacade.next();
+                        break;
+                    case LIST_SOFTBUTTON_ID:
+                        Log.i(TAG, "onOnButtonPress: List button pressed");
+                        PerformInteraction performInteraction = new PerformInteraction();
+                        performInteraction.setInitialText("Feeds");
+                        List<Integer> choiceSetIDs = new ArrayList<>();
+                        choiceSetIDs.add(FEEDS_CHOICESET_ID);
+                        performInteraction.setInteractionChoiceSetIDList(choiceSetIDs);
+                        performInteraction.setInteractionLayout(LayoutMode.LIST_ONLY);
+                        performInteraction.setInteractionMode(InteractionMode.MANUAL_ONLY);
+                        sendRPCDammit(performInteraction);
                 }
         }
     }
