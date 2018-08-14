@@ -22,6 +22,7 @@ import com.smartdevicelink.proxy.callbacks.OnServiceNACKed;
 import com.smartdevicelink.proxy.interfaces.IProxyListenerALM;
 import com.smartdevicelink.proxy.rpc.AddCommandResponse;
 import com.smartdevicelink.proxy.rpc.AddSubMenuResponse;
+import com.smartdevicelink.proxy.rpc.Alert;
 import com.smartdevicelink.proxy.rpc.AlertManeuverResponse;
 import com.smartdevicelink.proxy.rpc.AlertResponse;
 import com.smartdevicelink.proxy.rpc.ButtonPressResponse;
@@ -123,6 +124,7 @@ import java.util.concurrent.TimeUnit;
 import de.danoeh.antennapod.R;
 import de.danoeh.antennapod.core.feed.Feed;
 import de.danoeh.antennapod.core.feed.FeedItem;
+import de.danoeh.antennapod.core.feed.FeedMedia;
 import de.danoeh.antennapod.core.storage.DBTasks;
 
 public class SdlService extends Service implements IProxyListenerALM, PlayerFacade.Listener {
@@ -382,10 +384,17 @@ public class SdlService extends Service implements IProxyListenerALM, PlayerFaca
                         nextChoiceID++;
                         choice.setMenuName(feedItem.getTitle());
                         choice.setVrCommands(Arrays.asList(feedItem.getTitle()));
-                        choice.setSecondaryText(feedItem.getDescription());
-                        if (feedItem.getMedia() != null) {
+
+                        String secondaryText = "";
+                        if (feedItem.getMedia() == null) {
+                            secondaryText += "Non-media, ";
+                        } else {
+                            secondaryText += feedItem.getMedia().isDownloaded() ? "Downloaded" : "Stream";
                             choice.setTertiaryText(toHumanTime(feedItem.getMedia().getDuration()));
                         }
+                        secondaryText += ", " + feedItem.getDescription();
+                        choice.setSecondaryText(secondaryText);
+
                         choices.add(choice);
                     }
 
@@ -508,7 +517,14 @@ public class SdlService extends Service implements IProxyListenerALM, PlayerFaca
             performInteraction.setInitialText(playerFacade.getFeeds().get(response.getChoiceID()).getTitle());
             sendRPCDammit(performInteraction);
         } else {
-            DBTasks.playMedia(this, feedItemChoiceIDs.get(response.getChoiceID()).getMedia(), false, true, false);
+            FeedMedia media = feedItemChoiceIDs.get(response.getChoiceID()).getMedia();
+            if (media == null) {
+                Alert alert = new Alert();
+                alert.setAlertText1("This item has no media to play. Select another.");
+                sendRPCDammit(alert);
+                return;
+            }
+            DBTasks.playMedia(this, media, false, true, false);
         }
     }
 
