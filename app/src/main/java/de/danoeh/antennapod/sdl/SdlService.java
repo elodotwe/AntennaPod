@@ -113,6 +113,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -347,6 +348,7 @@ public class SdlService extends Service implements IProxyListenerALM, PlayerFaca
                     choice.setChoiceID(nextChoiceID);
                     nextChoiceID++;
                     choice.setMenuName(feed.getTitle());
+                    choice.setVrCommands(Arrays.asList(feed.getTitle()));
                     choice.setSecondaryText(feed.getLastUpdate());
                     choices.add(choice);
                 }
@@ -366,6 +368,7 @@ public class SdlService extends Service implements IProxyListenerALM, PlayerFaca
                         feedItemChoiceIDs.append(nextChoiceID, feedItem);
                         nextChoiceID++;
                         choice.setMenuName(feedItem.getTitle());
+                        choice.setVrCommands(Arrays.asList(feedItem.getTitle()));
                         choice.setSecondaryText(feedItem.getDescription());
                         if (feedItem.getMedia() != null) {
                             choice.setTertiaryText(toHumanTime(feedItem.getMedia().getDuration()));
