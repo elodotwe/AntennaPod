@@ -343,6 +343,11 @@ public class SdlService extends Service implements IProxyListenerALM, PlayerFaca
 
                 CreateInteractionChoiceSet createChoiceSet = new CreateInteractionChoiceSet();
                 List<Choice> choices = new ArrayList<>();
+                //SYNC only supports 100 items in a choice set. Clamp the list to 100 if it happens to be larger.
+                if (feedList.size() > 0) {
+                    feedList = feedList.subList(0, Math.min(100, feedList.size()));
+                }
+
                 for (Feed feed : feedList) {
                     Choice choice = new Choice();
                     choice.setChoiceID(nextChoiceID);
@@ -362,7 +367,15 @@ public class SdlService extends Service implements IProxyListenerALM, PlayerFaca
                     createChoiceSet.setInteractionChoiceSetID(setID);
                     setID++;
                     choices = new ArrayList<>();
-                    for (FeedItem feedItem : playerFacade.getItemsForFeed(feed)) {
+
+                    List<FeedItem> feedItems = playerFacade.getItemsForFeed(feed);
+
+                    //SYNC only supports 100 items in a choice set. Clamp the list to 100 if it happens to be larger.
+                    if (feedItems.size() > 0) {
+                        feedItems = feedItems.subList(0, Math.min(100, feedItems.size()));
+                    }
+
+                    for (FeedItem feedItem : feedItems) {
                         Choice choice = new Choice();
                         choice.setChoiceID(nextChoiceID);
                         feedItemChoiceIDs.append(nextChoiceID, feedItem);
